@@ -98,12 +98,16 @@ type Metrics struct {
 }
 
 func runScenario(path string, opts badger.Options) error {
-	ds, err := badger.Open(badger.DefaultOptions(path))
+	ds, err := badger.Open(opts)
 	if err != nil {
 		return fmt.Errorf("creating datastore: %s", err)
 	}
 	defer func() {
-		ds.RunValueLogGC(0.001)
+		ds.RunValueLogGC(0.01)
+		if err := ds.Close(); err != nil {
+			panic("Closing datastore: " + err.Error())
+		}
+		ds, _ = badger.Open(badger.DefaultOptions(path))
 		if err := ds.Close(); err != nil {
 			panic("Closing datastore: " + err.Error())
 		}
