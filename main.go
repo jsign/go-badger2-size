@@ -103,7 +103,11 @@ func runScenario(path string, opts badger.Options) error {
 		return fmt.Errorf("creating datastore: %s", err)
 	}
 	defer func() {
-		ds.RunValueLogGC(0.01)
+		for {
+			if err := ds.RunValueLogGC(0.01); err == badger.ErrNoRewrite {
+				break
+			}
+		}
 		if err := ds.Close(); err != nil {
 			panic("Closing datastore: " + err.Error())
 		}
