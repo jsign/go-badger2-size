@@ -123,8 +123,8 @@ func runScenario(path string, opts badger.Options) error {
 func runWorkload(ds *badger.DB) error {
 	r := rand.New(rand.NewSource(22))
 	keySize := 16
-	valueSize := 1024 * 10
-	numItems := 100000
+	valueSize := 1024
+	numItems := 1000000
 
 	keys := make([][]byte, numItems)
 	value := make([]byte, valueSize)
