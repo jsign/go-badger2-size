@@ -8,44 +8,43 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/ipfs/go-datastore"
-	badger "github.com/ipfs/go-ds-badger2"
+	"github.com/dgraph-io/badger/v2"
 )
 
 func main() {
 	scenarios := []struct {
 		Name string
-		Opts func() *badger.Options
+		Opts func(string) badger.Options
 	}{
 		{
 			Name: "Default config",
-			Opts: func() *badger.Options { return &badger.DefaultOptions },
+			Opts: func(path string) badger.Options { return badger.DefaultOptions(path) },
 		},
 		{
 			Name: "NumVersionToKeep0",
-			Opts: func() *badger.Options {
-				opts := badger.DefaultOptions
+			Opts: func(path string) badger.Options {
+				opts := badger.DefaultOptions(path)
 				opts.NumVersionsToKeep = 0
-				return &opts
+				return opts
 			},
 		},
 		{
 			Name: "CompactL0OnClose",
-			Opts: func() *badger.Options {
-				opts := badger.DefaultOptions
+			Opts: func(path string) badger.Options {
+				opts := badger.DefaultOptions(path)
 				opts.CompactL0OnClose = true
-				return &opts
+				return opts
 			},
 		},
 		{
 			Name: "Aggressive",
-			Opts: func() *badger.Options {
-				opts := badger.DefaultOptions
+			Opts: func(path string) badger.Options {
+				opts := badger.DefaultOptions(path)
 				opts.NumVersionsToKeep = 0
 				opts.CompactL0OnClose = true
 				opts.NumLevelZeroTables = 1
 				opts.NumLevelZeroTablesStall = 2
-				return &opts
+				return opts
 			},
 		},
 	}
@@ -61,7 +60,7 @@ func main() {
 				fmt.Printf("creating temp dir: %s", err)
 				os.Exit(1)
 			}
-			if err := runScenario(path, s.Opts()); err != nil {
+			if err := runScenario(path, s.Opts(path)); err != nil {
 				fmt.Printf("running scenario: %s", err)
 				os.Exit(1)
 			}
@@ -98,13 +97,13 @@ type Metrics struct {
 	SizeVLOGs int64
 }
 
-func runScenario(path string, opts *badger.Options) error {
-	ds, err := badger.NewDatastore(path, opts)
+func runScenario(path string, opts badger.Options) error {
+	ds, err := badger.Open(badger.DefaultOptions(path))
 	if err != nil {
 		return fmt.Errorf("creating datastore: %s", err)
 	}
 	defer func() {
-		ds.DB.RunValueLogGC(0.001)
+		ds.RunValueLogGC(0.001)
 		if err := ds.Close(); err != nil {
 			panic("Closing datastore: " + err.Error())
 		}
@@ -117,33 +116,44 @@ func runScenario(path string, opts *badger.Options) error {
 	return err
 }
 
-func runWorkload(ds *badger.Datastore) error {
+func runWorkload(ds *badger.DB) error {
 	r := rand.New(rand.NewSource(22))
 	keySize := 16
 	valueSize := 1024 * 10
 	numItems := 100000
 
-	keys := make([]datastore.Key, numItems)
+	keys := make([][]byte, numItems)
 	value := make([]byte, valueSize)
 
 	for i := 0; i < numItems; i++ {
-		bKey := make([]byte, keySize)
-		if _, err := r.Read(bKey); err != nil {
+		keys[i] = make([]byte, keySize)
+		if _, err := r.Read(keys[i]); err != nil {
 			return fmt.Errorf("generating key: %s", err)
 		}
-		key := datastore.NewKey(string(bKey))
-		keys[i] = key
 		if _, err := r.Read(value); err != nil {
 			return fmt.Errorf("generating value: %s", err)
 		}
-		if err := ds.Put(key, value); err != nil {
-			return fmt.Errorf("put operation: %s", err)
+		err := ds.Update(func(txn *badger.Txn) error {
+			if err := txn.Set(keys[i], value); err != nil {
+				return fmt.Errorf("put operation: %s", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("making update: %s", err)
 		}
+
 	}
 
 	for i := 0; i < numItems; i++ {
-		if err := ds.Delete(keys[i]); err != nil {
-			return fmt.Errorf("delete key: %s", err)
+		err := ds.Update(func(txn *badger.Txn) error {
+			if err := txn.Delete(keys[i]); err != nil {
+				return fmt.Errorf("delete key: %s", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("deleting: %s", err)
 		}
 	}
 	return nil
