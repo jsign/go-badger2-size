@@ -21,29 +21,12 @@ func main() {
 			Opts: func(path string) badger.Options { return badger.DefaultOptions(path) },
 		},
 		{
-			Name: "NumVersionToKeep0",
-			Opts: func(path string) badger.Options {
-				opts := badger.DefaultOptions(path)
-				opts.NumVersionsToKeep = 0
-				return opts
-			},
-		},
-		{
-			Name: "CompactL0OnClose",
-			Opts: func(path string) badger.Options {
-				opts := badger.DefaultOptions(path)
-				opts.CompactL0OnClose = true
-				return opts
-			},
-		},
-		{
 			Name: "Aggressive",
 			Opts: func(path string) badger.Options {
 				opts := badger.DefaultOptions(path)
 				opts.NumVersionsToKeep = 0
 				opts.CompactL0OnClose = true
-				opts.NumLevelZeroTables = 1
-				opts.NumLevelZeroTablesStall = 2
+				opts.ValueLogFileSize = 1024 * 1024 * 20
 				return opts
 			},
 		},
