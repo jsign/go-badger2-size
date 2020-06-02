@@ -20,16 +20,6 @@ func main() {
 			Name: "Default config",
 			Opts: func(path string) badger.Options { return badger.DefaultOptions(path) },
 		},
-		{
-			Name: "Aggressive",
-			Opts: func(path string) badger.Options {
-				opts := badger.DefaultOptions(path)
-				opts.NumVersionsToKeep = 0
-				opts.CompactL0OnClose = true
-				opts.ValueLogFileSize = 1024 * 1024 * 20
-				return opts
-			},
-		},
 	}
 
 	var wg sync.WaitGroup
@@ -94,10 +84,6 @@ func runScenario(path string, opts badger.Options) error {
 		if err := ds.Close(); err != nil {
 			panic("Closing datastore: " + err.Error())
 		}
-		ds, _ = badger.Open(badger.DefaultOptions(path))
-		if err := ds.Close(); err != nil {
-			panic("Closing datastore: " + err.Error())
-		}
 	}()
 
 	if err := runWorkload(ds); err != nil {
@@ -110,8 +96,8 @@ func runScenario(path string, opts badger.Options) error {
 func runWorkload(ds *badger.DB) error {
 	r := rand.New(rand.NewSource(22))
 	keySize := 16
-	valueSize := 1024
-	numItems := 1000000
+	valueSize := 1024 * 1024
+	numItems := 10000
 
 	keys := make([][]byte, numItems)
 	value := make([]byte, valueSize)
